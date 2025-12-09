@@ -1,1 +1,0 @@
-# cleaned_spatial_pedagogy
