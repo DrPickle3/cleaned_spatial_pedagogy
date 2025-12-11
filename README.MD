@@ -1,5 +1,27 @@
 # Spatial Pedagogy
 
+## Cloning this Repository
+
+This repository contains a submodule. To clone with all submodules:
+
+```bash
+git clone --recurse-submodules https://github.com/DrPickle3/cleaned_spatial_pedagogy.git
+```
+
+If you already cloned without submodules, initialize them with:
+
+```bash
+git submodule update --init --recursive
+```
+
+### Updating Submodules
+
+To pull the latest changes from submodules:
+
+```bash
+git submodule update --remote
+```
+
 ## Requirements
 
 ### Python Dependencies
