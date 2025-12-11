@@ -75,7 +75,7 @@ python server.py --display
 const char* WIFI_PASS = "spatial123";
 const char* WIFI_NAME = "Spatial_Pedagogy";
 ```
-Change those credentials to whatever your hotspot is.
+Change those credentials to whatever your hotspot is before pushing code in the Tag.
 
 ---
 
@@ -245,6 +245,8 @@ if(_networkDevicesNumber + 1 <= MAX_DEVICES && addDevice)
 1. **Calibrate antennas** - Use `antDelayTriangle.py` or `antDelaySingleLine.py`
 2. **Flash devices** - Use `pio run --target upload` while the anchor/tag is plugged in a USB port
 
+**Note** You really have to put the credentials in a new file named secrets.h in src/ before pushing any code to any hardware. There is an example above.
+
 ## Phone details
 
 ### PIN
@@ -256,3 +258,11 @@ if(_networkDevicesNumber + 1 <= MAX_DEVICES && addDevice)
 
 When I did my precision 1d, the server goes timeout because it doesn't receive anything from the Tag but
 it's because there are no anchors not because we lost connection to the Tag. We probably want to investigate this further... For now I just put the timeout to 800 seconds instead of 8 seconds.
+
+### Changing configuration
+
+Maybe we want to specify a certain configuration file to choose which group of anchor positions we want to display using the visualizer.
+
+### GUI application for non-code users
+
+Next step of this project would be to develop a real GUI application to be really user friendly. With this current setup, we need to understand a little bit of python and be able to use the terminal with common bash commands.
