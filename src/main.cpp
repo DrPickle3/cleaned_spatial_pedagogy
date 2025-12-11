@@ -14,52 +14,7 @@
 char ANCHOR_ADD[] = "A3:AA:5B:D5:A9:9A:E2:9C";
 char TAG_ADDR[] = "7D:00:22:EA:82:60:3B:9B";
 
-// SAVED ANCHOR CALIBRATIONS (Not good anymore)
-// A1 = 16446 (+10) Accurate
-// A2 = 16511 (+75) Not that good
-// A3 = 16456 (+20) Not much better
-// A4 = 16406 (-30) Almost perfect
-// REF TAG = 16436
-
-/*
- * Distance from Tag to Anchor 1 : 3.449
- * True Distance Tag/Anchor1 : 2.8702
- *
- * Distance measured from Tag to Anchor 4 : 3.045
- * True Distance Tag/Anchor4 : 2.5908
- *
- * Distance measured from Anchor 1 to Anchor 4 : 2.370
- * True Distance Anchor1/Anchor4 : 1.7018
- *
- *
- * ------------- Corrections --------------
- * Tag     : 39
- * Anchor1 : 85
- * Anchor2 : 98
- * Anchor3 : 89
- * Anchor4 : 58
- *
- * --------- Second Corrections -----------
- * Tag     : 81 ?
- * Anchor1 : 22 ?
- * Anchor2 : 41 ?
- * Anchor3 : 21 ?
- * Anchor4 : 4 ?
- * Anchor5 : 28
- * Anchor6 : 0 ???????????? crazy
- * Anchor7 : 0 ????????????
- *
- * Distance from Tag to Anchor 1 : 1.905
- * True Distance Tag/Anchor1 : 1.901
- *
- * Distance measured from Tag to Anchor 4 : 1.8288
- * True Distance Tag/Anchor4 : 1.842
- *
- * Distance measured from Anchor 1 to Anchor 4 : 2.370
- * True Distance Anchor1/Anchor4 : 1.7018
- *
- */
-
+/* Antenna delay values in clock ticks above the default value of 16436 */
 #define TAG_ANT_DELAY 81
 #define A1_ANT_DELAY 125
 #define A2_ANT_DELAY 82
