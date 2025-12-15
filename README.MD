@@ -184,6 +184,11 @@ measured_distances = {
 }
 ```
 
+true_distances are the distances measured using a measuring tape in the real world.
+measured_distances are ranges measured by the sensors (mean value of stationary system).
+
+**Note** When all of your sensors are not calibrated, you have to put a Tag and 2 anchors in a triangle and keep the mean range of both distances. Then push Tag code in one of the anchor to get the 3rd side of the triangle. Try to not move at all the position of the anchor that will temporarily be a tag. When you have those 3 devices calibrated, just use the tag and a non-calibrated anchor at a time using the single line method right under.
+
 ---
 
 ### 5. Antenna Delay Calibration - Single Line Method (`antDelaySingleLine.py`)
