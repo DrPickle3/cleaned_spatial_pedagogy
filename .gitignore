@@ -1,4 +1,5 @@
 scripts/__pycache__/
+experiments/
 secrets.h
 .pio
 .vscode/.browse.c_cpp.db*

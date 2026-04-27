@@ -101,45 +101,74 @@ Change those credentials to whatever your hotspot is before pushing code in the 
 
 ---
 
-### 2. Visualizer (`visualizer.py`)
+### 2. Calibration Initiale (`calibrer.py`)
+
+Runs the calibration GUI only.
+
+Input: CSV + image
+Output: experiment folder containing calibration artifacts (`calibration_results.json`, `anchors_calibrated.json`, `processed_image.png`, `calibrated_points.csv`)
+
+```bash
+cd scripts
+python calibrer.py --csv ../logs/positions.csv --image ../images/Classe_Boisjoli.png
+```
+
+The experiment folder is automatically created and stored at the root of the project under `experiments/`.
+
+---
+
+### 3. Transformation Sans GUI (`transformer.py`)
+
+Applies an existing calibration to another CSV file without opening calibration GUI.
+
+Input: CSV + `calibration_results.json`
+Output: new experiment folder containing `calibrated_points.csv` and `transform_metadata.json`
+
+```bash
+cd scripts
+python transformer.py --csv ../logs/positions.csv --json ../experiments/experiment-test-2/calibration_results.json
+```
+
+---
+
+### 4. Visualisation (`visualiser.py`)
 
 Displays trajectory visualization from recorded CSV data with various analysis options.
 
 ```bash
 cd scripts
-python visualizer.py
+python visualiser.py
 ```
 
 **Options:**
 | Flag | Description |
 |------|-------------|
 | `--csv <path>` | Path to CSV file (default: `../logs/positions.csv`) |
+| `--image <path>` | Path to background image in the viewer |
 | `--heatmap` | Display heatmap of position density |
 | `--stops` | Detect and display stops in the trajectory |
 | `--precision` | Show precision statistics (for stationary measurements) |
 | `--trail <n>` | Number of past positions to show (default: 10) |
 | `--max_time_diff <s>` | Max time between positions in seconds (default: 0.2) |
-| `--calibration` | Run image calibration for overlay visualization |
-| `--experiment <path>` | Use pre-calibrated experiment folder |
+| `--experiment <path>` | Use an existing experiment folder for visualization |
+
+When `--experiment` is used, the viewer automatically uses `calibrated_points.csv`, `processed_image.png`, and `anchors_calibrated.json` from that folder when they exist.
 
 **Examples:**
 ```bash
 # Basic visualization
-python visualizer.py --csv ../logs/positions.csv
+python visualiser.py --csv ../logs/positions.csv
 
-# With heatmap and stop detection
-python visualizer.py --csv ../logs/positions.csv --heatmap --stops
+# Visualization with background image and stop detection (Not calibrated)
+python visualiser.py --csv ../logs/positions.csv --image ../images/Classe_Boisjoli.png --heatmap --stops
 
-# Precision analysis for stationary tag
-python visualizer.py --csv ../logs/stationary_positions.csv --precision
-
-# With image calibration
-python visualizer.py --csv ../logs/positions.csv --calibration
+# Visualization directly from an experiment folder (calibrated points)
+python visualiser.py --experiment ./<generated_experiment_folder> --heatmap --stops
 ```
 
 ---
 
-### 3. Mean Range Calculator (`meanRange.py`)
+### 5. Mean Range Calculator (`meanRange.py`)
 
 Calculates and displays the mean measured range for each anchor from a CSV file.
 
@@ -160,7 +189,7 @@ python meanRange.py --csv ../logs/positions.csv
 
 ---
 
-### 4. Antenna Delay Calibration - Triangle Method (`antDelayTriangle.py`)
+### 6. Antenna Delay Calibration - Triangle Method (`antDelayTriangle.py`)
 
 Computes antenna delay corrections for 3 devices (1 tag + 2 anchors) using triangle measurements.
 
@@ -191,7 +220,7 @@ measured_distances are ranges measured by the sensors (mean value of stationary 
 
 ---
 
-### 5. Antenna Delay Calibration - Single Line Method (`antDelaySingleLine.py`)
+### 7. Antenna Delay Calibration - Single Line Method (`antDelaySingleLine.py`)
 
 Computes antenna delay for a single anchor using one known distance.
 
@@ -265,7 +294,7 @@ if(_networkDevicesNumber + 1 <= MAX_DEVICES && addDevice)
 2. **Configure** - Update `config.json` with anchor coordinates
 3. **Start server** - Run `python server.py`
 4. **Collect data** - Move the tag around
-5. **Visualize** - Use `python visualizer.py` to analyze results
+5. **Visualize** - Use `python visualiser.py` to analyze results
 
 ## Workflow for new devices
 
