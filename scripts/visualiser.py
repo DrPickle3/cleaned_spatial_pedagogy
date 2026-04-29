@@ -7,8 +7,9 @@ import sys
 
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
 from matplotlib.patches import Ellipse
-from matplotlib.widgets import Button, Slider
+from matplotlib.widgets import Button, RangeSlider
 
 import numpy as np
 from scipy.ndimage import uniform_filter1d
@@ -49,7 +50,7 @@ def build_arg_parser():
     p.add_argument('--precision', action='store_true',
                    help='Displays precision over the entire log')
     p.add_argument('--trail', type=int, default=10,
-                   help='Number of previous points to show')
+                   help='Initial interval length for the range slider')
     p.add_argument('--max_time_diff', type=float, default=0.2,
                    help='Maximum amount of time in seconds between 2 positions')
     return p
@@ -282,15 +283,60 @@ def resolve_visualization_inputs(args):
 def update_scatter_from_csv(anchors, csv_filename, image_path, args):
     """Displays a dynamic trajectory plot of the tag positions."""
     try:
-        fig, ax = plt.subplots()
-        plt.subplots_adjust(bottom=0.25)
-        ax.set_aspect("equal")
-
         img = None
         if image_path and os.path.exists(image_path):
             img = mpimg.imread(image_path)
 
         xs, ys, timestamps, float_timestamps = get_positions(csv_filename)
+
+        anchor_xs = [coord[0] for coord in anchors.values()]
+        anchor_ys = [coord[1] for coord in anchors.values()]
+
+        all_x = np.concatenate([xs, anchor_xs]) if len(anchor_xs) else xs
+        all_y = np.concatenate([ys, anchor_ys]) if len(anchor_ys) else ys
+
+        padding = utils.img_padding if img is not None else utils.no_image_padding
+        x_min, x_max = all_x.min() - padding, all_x.max() + padding
+        y_min, y_max = all_y.min() - padding, all_y.max() + padding
+
+        if args.heatmap:
+            fig, (ax_points, ax_heat) = plt.subplots(1, 2, figsize=(12, 6))
+            fig.subplots_adjust(bottom=0.25, wspace=0.25)
+        else:
+            fig, ax_points = plt.subplots()
+            fig.subplots_adjust(bottom=0.25)
+            ax_heat = None
+
+        def draw_background(target_ax):
+            target_ax.set_aspect("equal")
+            if img is not None:
+                target_ax.imshow(
+                    img,
+                    extent=[x_min, x_max, y_min, y_max],
+                    aspect='equal',
+                    origin='lower',
+                )
+
+        def apply_axis_frame(target_ax):
+            target_ax.set_xlabel("X")
+            target_ax.set_ylabel("Y")
+            target_ax.set_xlim(x_min, x_max)
+            target_ax.set_ylim(y_min, y_max)
+            target_ax.invert_yaxis()
+
+            bin_size_x = (x_max - x_min) / MAJOR_CELLS
+            bin_size_y = (y_max - y_min) / MAJOR_CELLS
+            minor_x = bin_size_x / MINOR_DIV
+            minor_y = bin_size_y / MINOR_DIV
+
+            target_ax.set_xticks(np.arange(x_min, x_max + bin_size_x, bin_size_x))
+            target_ax.set_yticks(np.arange(y_min, y_max + bin_size_y, bin_size_y))
+            target_ax.set_xticks(np.arange(x_min, x_max + minor_x, minor_x), minor=True)
+            target_ax.set_yticks(np.arange(y_min, y_max + minor_y, minor_y), minor=True)
+            target_ax.grid(which='major', linestyle=':', color='gray', linewidth=1.5, alpha=0.5)
+            target_ax.grid(which='minor', linestyle=':', color='gray', linewidth=1, alpha=0.3)
+
+        draw_background(ax_points)
 
         if args.precision:
             mean_x, mean_y = np.mean(xs), np.mean(ys)
@@ -306,84 +352,90 @@ def update_scatter_from_csv(anchors, csv_filename, image_path, args):
                 linewidth=1.5,
                 label=f"Incertitude (2σ), VarX={var_x:.3f}, VarY={var_y:.3f}",
             )
-            ax.add_patch(gaussian_circle)
-            ax.plot([REAL_POS_PRECISION[0]], [REAL_POS_PRECISION[1]], marker='*', color="#30EA30",
-                    markersize=10, linestyle='', label="Real position")
-            ax.plot([mean_x], [mean_y], 'yo', markersize=6, label="Mean position")
+            ax_points.add_patch(gaussian_circle)
+            ax_points.plot(
+                [REAL_POS_PRECISION[0]],
+                [REAL_POS_PRECISION[1]],
+                marker='*',
+                color="#30EA30",
+                markersize=10,
+                linestyle='',
+                label="Real position",
+            )
+            ax_points.plot([mean_x], [mean_y], 'yo', markersize=6, label="Mean position")
 
-        anchor_xs = [coord[0] for coord in anchors.values()]
-        anchor_ys = [coord[1] for coord in anchors.values()]
-
-        all_x = np.concatenate([xs, anchor_xs]) if len(anchor_xs) else xs
-        all_y = np.concatenate([ys, anchor_ys]) if len(anchor_ys) else ys
-
-        padding = utils.img_padding if img is not None else utils.no_image_padding
-        x_min, x_max = all_x.min() - padding, all_x.max() + padding
-        y_min, y_max = all_y.min() - padding, all_y.max() + padding
-
-        if img is not None:
-            ax.imshow(img, extent=[x_min, x_max, y_min, y_max], aspect='equal', origin='lower')
-
-        ax.scatter(anchor_xs, anchor_ys, c="purple", s=80, marker="X", label="Anchors")
+        if len(anchor_xs):
+            ax_points.scatter(anchor_xs, anchor_ys, c="purple", s=80, marker="X", label="Anchors")
 
         if args.stops:
             _, _, _, stops_pos = detect_stops(csv_filename)
             stop_xs = [stop["x"] for stop in stops_pos]
             stop_ys = [stop["y"] for stop in stops_pos]
-            ax.scatter(stop_xs, stop_ys, c="red", s=60, marker="^", label="Stops")
+            ax_points.scatter(stop_xs, stop_ys, c="red", s=60, marker="^", label="Stops")
 
-        point, = ax.plot([], [], 'go', markersize=6, label="Current position")
-        trail_scatter = ax.scatter([], [], c='blue', s=30, label="Past positions")
+        point, = ax_points.plot([], [], 'go', markersize=6, label="Interval end")
+        interval_scatter = ax_points.scatter([], [], c='blue', s=30, label="Interval positions")
 
-        ax.set_xlabel("X")
-        ax.set_ylabel("Y")
-        ax.set_xlim(x_min, x_max)
-        ax.set_ylim(y_min, y_max)
-        ax.invert_yaxis()
-        ax.legend()
+        apply_axis_frame(ax_points)
+        ax_points.legend()
 
-        if args.heatmap and len(xs) > 0:
-            bin_size_x = (x_max - x_min) / NUM_BINS
-            bin_size_y = (y_max - y_min) / NUM_BINS
-            x_bins = np.arange(x_min, x_max, bin_size_x)
-            y_bins = np.arange(y_min, y_max, bin_size_y)
-            heatmap, xedges, yedges = np.histogram2d(xs, ys, bins=[x_bins, y_bins])
-            heatmap_seconds = heatmap * args.max_time_diff
+        if args.heatmap and ax_heat is not None:
+            draw_background(ax_heat)
 
-            cmap = plt.colormaps["Reds"].copy()
-            cmap.set_bad(color="white")
-            im = ax.imshow(
-                heatmap_seconds.T,
-                extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]],
-                origin='lower',
-                cmap=cmap,
-                alpha=0.3,
-                aspect='auto',
-            )
-            cbar = plt.colorbar(im, ax=ax)
-            cbar.set_label("Seconds", rotation=270, labelpad=15)
+            if len(xs) > 0:
+                bin_size_x = (x_max - x_min) / NUM_BINS
+                bin_size_y = (y_max - y_min) / NUM_BINS
+                x_bins = np.arange(x_min, x_max, bin_size_x)
+                y_bins = np.arange(y_min, y_max, bin_size_y)
+                heatmap, xedges, yedges = np.histogram2d(xs, ys, bins=[x_bins, y_bins])
+                heatmap_seconds = heatmap * args.max_time_diff
 
-        bin_size_x = (x_max - x_min) / MAJOR_CELLS
-        bin_size_y = (y_max - y_min) / MAJOR_CELLS
-        minor_x = bin_size_x / MINOR_DIV
-        minor_y = bin_size_y / MINOR_DIV
+                cmap = plt.colormaps["Reds"].copy()
+                cmap.set_bad(color="white")
 
-        ax.set_xticks(np.arange(x_min, x_max + bin_size_x, bin_size_x))
-        ax.set_yticks(np.arange(y_min, y_max + bin_size_y, bin_size_y))
-        ax.set_xticks(np.arange(x_min, x_max + minor_x, minor_x), minor=True)
-        ax.set_yticks(np.arange(y_min, y_max + minor_y, minor_y), minor=True)
-        ax.grid(which='major', linestyle=':', color='gray', linewidth=1.5, alpha=0.5)
-        ax.grid(which='minor', linestyle=':', color='gray', linewidth=1, alpha=0.3)
+                norm = LogNorm(vmin=0.1, vmax=heatmap_seconds.max())
 
-        ax.set_title(f"Trajectory map : Frame 1/{len(xs)}\n{timestamps[0]}")
+                im = ax_heat.imshow(
+                    heatmap_seconds.T,
+                    extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]],
+                    origin='lower',
+                    cmap=cmap,
+                    norm=norm,
+                    alpha=0.3,
+                    aspect='auto',
+                )
+
+                ticks = [1, 5, 10, 30, 60, 120, 300, 600]
+
+                cbar.set_ticks(ticks)
+                cbar.set_ticklabels([str(t) for t in ticks])
+                cbar = fig.colorbar(im, ax=ax_heat)
+                cbar.set_label("Seconds", rotation=270, labelpad=15)
+
+            if len(anchor_xs):
+                ax_heat.scatter(anchor_xs, anchor_ys, c="purple", s=80, marker="X", label="Anchors")
+                ax_heat.legend()
+
+            apply_axis_frame(ax_heat)
+            ax_heat.set_title("Heatmap")
+
+        ax_points.set_title(f"Trajectory map : Frames 1-1/{len(xs)}\n{timestamps[0]} -> {timestamps[0]}")
         total_str = format_duration(float_timestamps[-1] - float_timestamps[0])
 
         ax_duration = plt.axes([0.25, 0.06, 0.5, 0.03])
         ax_duration.axis("off")
-        duration_text = ax_duration.text(0.5, 0.5, f"00:00 / {total_str}", ha="center", va="center", fontsize=10)
+        duration_text = ax_duration.text(0.5, 0.5, f"00:00 - 00:00 / {total_str}", ha="center", va="center", fontsize=10)
 
         ax_slider = plt.axes([0.25, 0.1, 0.5, 0.03])
-        slider = Slider(ax_slider, 'Frame', 1, len(xs), valinit=1, valfmt='%d')
+        init_end = min(len(xs), max(1, args.trail))
+        slider = RangeSlider(
+            ax_slider,
+            'Frame range',
+            1,
+            len(xs),
+            valinit=(1, init_end),
+            valfmt='%d',
+        )
 
         ax_prev = plt.axes([0.1, 0.1, 0.05, 0.03])
         ax_next = plt.axes([0.9, 0.1, 0.05, 0.03])
@@ -391,31 +443,29 @@ def update_scatter_from_csv(anchors, csv_filename, image_path, args):
         btn_next = Button(ax_next, "▶")
 
         def update(val):
-            end_frame = int(slider.val)
-            start_frame = max(1, end_frame - args.trail)
+            start_frame, end_frame = slider.val
+            start_frame = int(round(start_frame))
+            end_frame = int(round(end_frame))
+            start_frame = max(1, min(start_frame, len(xs)))
+            end_frame = max(1, min(end_frame, len(xs)))
+            if start_frame > end_frame:
+                start_frame, end_frame = end_frame, start_frame
 
             selected_x = xs[start_frame - 1:end_frame]
             selected_y = ys[start_frame - 1:end_frame]
-            trail_scatter.set_offsets(np.c_[selected_x, selected_y])
+            interval_scatter.set_offsets(np.c_[selected_x, selected_y])
             point.set_data([xs[end_frame - 1]], [ys[end_frame - 1]])
 
-            start = max(0, end_frame - 1 - args.trail)
-            trail_x = xs[start:end_frame - 1]
-            trail_y = ys[start:end_frame - 1]
+            start_duration = float_timestamps[start_frame - 1] - float_timestamps[0]
+            end_duration = float_timestamps[end_frame - 1] - float_timestamps[0]
+            duration_text.set_text(
+                f"{format_duration(start_duration)} - {format_duration(end_duration)} / {total_str}"
+            )
 
-            current_duration = float_timestamps[end_frame - 1] - float_timestamps[0]
-            duration_text.set_text(f"{format_duration(current_duration)} / {total_str}")
-
-            n = len(trail_x)
-            if n > 0:
-                alphas = np.linspace(0.1, 0.8, n)
-                colors = [(0, 0, 1, a) for a in alphas]
-                trail_scatter.set_offsets(np.c_[trail_x, trail_y][::-1])
-                trail_scatter.set_facecolors(colors[::-1])
-            else:
-                trail_scatter.set_offsets(np.empty((0, 2)))
-
-            ax.set_title(f"Trajectory map : Frame {end_frame}/{len(xs)}\n{timestamps[end_frame - 1]}")
+            ax_points.set_title(
+                f"Trajectory map : Frames {start_frame}-{end_frame}/{len(xs)}\n"
+                f"{timestamps[start_frame - 1]} -> {timestamps[end_frame - 1]}"
+            )
             fig.canvas.draw_idle()
 
         slider.on_changed(update)
@@ -423,15 +473,25 @@ def update_scatter_from_csv(anchors, csv_filename, image_path, args):
 
         def next_frame(event):
             fig.canvas.release_mouse(slider.ax)
-            end_frame = int(slider.val)
+            start_frame, end_frame = slider.val
+            start_frame = int(round(start_frame))
+            end_frame = int(round(end_frame))
+            width = max(0, end_frame - start_frame)
             if end_frame < len(xs):
-                slider.set_val(end_frame + 1)
+                new_end = end_frame + 1
+                new_start = max(1, new_end - width)
+                slider.set_val((new_start, new_end))
 
         def prev_frame(event):
             fig.canvas.release_mouse(slider.ax)
-            end_frame = int(slider.val)
-            if end_frame > 1:
-                slider.set_val(end_frame - 1)
+            start_frame, end_frame = slider.val
+            start_frame = int(round(start_frame))
+            end_frame = int(round(end_frame))
+            width = max(0, end_frame - start_frame)
+            if start_frame > 1:
+                new_start = start_frame - 1
+                new_end = min(len(xs), new_start + width)
+                slider.set_val((new_start, new_end))
 
         btn_next.on_clicked(next_frame)
         btn_prev.on_clicked(prev_frame)
