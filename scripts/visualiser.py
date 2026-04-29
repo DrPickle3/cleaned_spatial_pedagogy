@@ -407,9 +407,9 @@ def update_scatter_from_csv(anchors, csv_filename, image_path, args):
 
                 ticks = [1, 5, 10, 30, 60, 120, 300, 600]
 
+                cbar = fig.colorbar(im, ax=ax_heat)
                 cbar.set_ticks(ticks)
                 cbar.set_ticklabels([str(t) for t in ticks])
-                cbar = fig.colorbar(im, ax=ax_heat)
                 cbar.set_label("Seconds", rotation=270, labelpad=15)
 
             if len(anchor_xs):
