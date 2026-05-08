@@ -7,7 +7,7 @@ import sys
 
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm
+from matplotlib.colors import LogNorm, LinearSegmentedColormap
 from matplotlib.patches import Ellipse
 from matplotlib.widgets import Button, RangeSlider
 
@@ -142,7 +142,7 @@ def format_duration(seconds_total):
     return f"{minutes:02d}:{seconds:02d}"
 
 
-def detect_stops(csv_filename, speed_thresh=0.2, min_duration=30.0):
+def detect_stops(csv_filename, speed_thresh=0.5, min_duration=1.0):
     """Detects stops based on movement speed threshold and duration."""
     xs, ys, timestamps, float_timestamps = get_positions(csv_filename)
 
@@ -196,7 +196,21 @@ def show_summary_window(csv_filename):
 
     mean_stop = np.mean(durations) if durations else 0
     total_stops = len(durations)
-    dist = np.sum(np.sqrt(np.diff(xs)**2 + np.diff(ys)**2)) if len(xs) > 1 else 0
+
+    xs_smooth = uniform_filter1d(xs, size=25)
+    ys_smooth = uniform_filter1d(ys, size=25)
+
+    dx = np.diff(xs_smooth)
+    dy = np.diff(ys_smooth)
+
+    step_dist = np.sqrt(dx**2 + dy**2)
+
+    # Ignore tiny jitter
+    step_dist[step_dist < 0.10] = 0
+    # Reject unrealistic jumps
+    step_dist[step_dist > 1.5] = 0
+
+    dist = np.sum(step_dist)
 
     text = (
         f"**Statistiques**\n"
@@ -374,7 +388,7 @@ def update_scatter_from_csv(anchors, csv_filename, image_path, args):
             ax_points.scatter(stop_xs, stop_ys, c="red", s=60, marker="^", label="Stops")
 
         point, = ax_points.plot([], [], 'go', markersize=6, label="Interval end")
-        interval_scatter = ax_points.scatter([], [], c='blue', s=30, label="Interval positions")
+        interval_scatter = ax_points.scatter([], [], c='blue', s=30, alpha=0.2, label="Interval positions")
 
         apply_axis_frame(ax_points)
         ax_points.legend()
@@ -390,7 +404,15 @@ def update_scatter_from_csv(anchors, csv_filename, image_path, args):
                 heatmap, xedges, yedges = np.histogram2d(xs, ys, bins=[x_bins, y_bins])
                 heatmap_seconds = heatmap * args.max_time_diff
 
-                cmap = plt.colormaps["Reds"].copy()
+
+                cmap = LinearSegmentedColormap.from_list(
+                    "custom_blue",
+                    [
+                        (0.85, 0.92, 1.0),  # pale blue
+                        (0.0, 0.2, 0.9)     # strong blue
+                    ]
+                )
+
                 cmap.set_bad(color="white")
 
                 norm = LogNorm(vmin=0.1, vmax=heatmap_seconds.max())
@@ -401,7 +423,7 @@ def update_scatter_from_csv(anchors, csv_filename, image_path, args):
                     origin='lower',
                     cmap=cmap,
                     norm=norm,
-                    alpha=0.3,
+                    alpha=0.8,
                     aspect='auto',
                 )
 
@@ -411,10 +433,6 @@ def update_scatter_from_csv(anchors, csv_filename, image_path, args):
                 cbar.set_ticks(ticks)
                 cbar.set_ticklabels([str(t) for t in ticks])
                 cbar.set_label("Seconds", rotation=270, labelpad=15)
-
-            if len(anchor_xs):
-                ax_heat.scatter(anchor_xs, anchor_ys, c="purple", s=80, marker="X", label="Anchors")
-                ax_heat.legend()
 
             apply_axis_frame(ax_heat)
             ax_heat.set_title("Heatmap")

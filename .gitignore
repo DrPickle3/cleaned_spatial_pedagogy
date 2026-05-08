@@ -1,5 +1,6 @@
 scripts/__pycache__/
 experiments/
+spatial_pedagogy_venv/
 secrets.h
 .pio
 .vscode/.browse.c_cpp.db*
