@@ -33,7 +33,7 @@ no_image_padding = 1
 logger = logging.getLogger(__name__)
 
 
-def load_anchors(config_path="../config.json"):
+def load_anchors(config_path="../Config/config.json"):
     """
     Load anchors from a JSON configuration file.
 
