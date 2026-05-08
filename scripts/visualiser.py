@@ -385,9 +385,9 @@ def update_scatter_from_csv(anchors, csv_filename, image_path, args):
             _, _, _, stops_pos = detect_stops(csv_filename)
             stop_xs = [stop["x"] for stop in stops_pos]
             stop_ys = [stop["y"] for stop in stops_pos]
-            ax_points.scatter(stop_xs, stop_ys, c="red", s=60, marker="^", label="Stops")
+            ax_points.scatter(stop_xs, stop_ys, c="green", s=60, marker="^", label="Stops")
 
-        point, = ax_points.plot([], [], 'go', markersize=6, label="Interval end")
+        point, = ax_points.plot([], [], 'ro', markersize=6, label="Interval end")
         interval_scatter = ax_points.scatter([], [], c='blue', s=30, alpha=0.2, label="Interval positions")
 
         apply_axis_frame(ax_points)
