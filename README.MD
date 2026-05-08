@@ -126,7 +126,7 @@ Output: new experiment folder containing `calibrated_points.csv` and `transform_
 
 ```bash
 cd scripts
-python transformer.py --csv ../logs/positions.csv --json ../experiments/experiment-test-2/calibration_results.json
+python transformer.py --csv ../logs/positions.csv --experiment ../experiments/experiment_name/
 ```
 
 ---
@@ -163,7 +163,7 @@ python visualiser.py --csv ../logs/positions.csv
 python visualiser.py --csv ../logs/positions.csv --image ../images/Classe_Boisjoli.png --heatmap --stops
 
 # Visualization directly from an experiment folder (calibrated points)
-python visualiser.py --experiment ./<generated_experiment_folder> --heatmap --stops
+python visualiser.py --experiment ../experiments/experiment_name_transformed/ --heatmap --stops
 ```
 
 ---
@@ -309,6 +309,12 @@ if(_networkDevicesNumber + 1 <= MAX_DEVICES && addDevice)
 1545
 
 ## TODO
+
+Stops dans une fenetre appart + dynamique dans la fenetre avec les points
+point rouge au lieu de vert
+stops vert au lieu de rouge
+fleches par bond de 3-5
+Transformation anchors image ca marche pas cest pas tant alligner 
 
 ### Network socket timeout
 
