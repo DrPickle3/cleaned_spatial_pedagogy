@@ -15,6 +15,7 @@ secrets.h
 *.jpg
 *.jpeg
 *.pdf
+*.json
 
 # Not ignore files from the forked DW1000 library
 !.pio/libdeps/esp32dev/DW1000/src/
