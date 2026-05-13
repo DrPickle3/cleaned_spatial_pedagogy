@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm, LinearSegmentedColormap
 from matplotlib.patches import Ellipse
 from matplotlib.widgets import Button, RangeSlider
+from matplotlib.gridspec import GridSpec
 
 import numpy as np
 from scipy.ndimage import uniform_filter1d
@@ -33,7 +34,6 @@ CHIP_INCERTITUDE = 0.1
 
 
 def build_arg_parser():
-    """Builds and returns the argument parser for the visualization-only script."""
     p = argparse.ArgumentParser(
         description="Visualization-only script. Input: image,csv. Output: interactive viewer"
     )
@@ -57,24 +57,28 @@ def build_arg_parser():
 
 
 def get_positions(csv_filename):
-    """Reads x, y and timestamp data from a CSV file."""
     xs, ys, timestamps, float_timestamps = [], [], [], []
+
     with open(csv_filename, newline='', encoding='utf-8') as file:
         reader = csv.DictReader(file)
+
         for row in reader:
             try:
                 x = float(row.get("x_transformed", row.get("pos_x")))
                 y = float(row.get("y_transformed", row.get("pos_y")))
 
                 t = datetime.strptime(row["Timestamp"], "%Y-%m-%d %H:%M:%S.%f")
+
                 float_timestamps.append(t.timestamp())
                 timestamps.append(row.get("Timestamp"))
                 xs.append(x)
                 ys.append(y)
+
             except (TypeError, ValueError, KeyError):
                 continue
 
     xs, ys = np.array(xs), np.array(ys)
+
     xs, ys, timestamps, float_timestamps = densify_positions(
         xs, ys, timestamps, float_timestamps
     )
@@ -83,7 +87,6 @@ def get_positions(csv_filename):
 
 
 def densify_positions(xs, ys, timestamps, float_timestamps, max_dt=0.2):
-    """Interpolates positions if the time gap between samples exceeds max_dt."""
     if len(xs) == 0:
         return xs, ys, timestamps, float_timestamps
 
@@ -99,8 +102,10 @@ def densify_positions(xs, ys, timestamps, float_timestamps, max_dt=0.2):
 
         if dt > max_dt:
             steps = int(dt // max_dt)
+
             for s in range(1, steps + 1):
                 r = s / (steps + 1)
+
                 new_xs.append(x0 + r * (x1 - x0))
                 new_ys.append(y0 + r * (y1 - y0))
                 new_ts.append(t0 + r * dt)
@@ -112,45 +117,51 @@ def densify_positions(xs, ys, timestamps, float_timestamps, max_dt=0.2):
         padded_ts.append(timestamps[i])
 
     utils.logger.info("Positions densified")
+
     return np.array(new_xs), np.array(new_ys), padded_ts, new_ts
 
 
 def smart_anchors(anchors, csv_filename):
-    """Keeps only the anchors that are referenced by the CSV file."""
     if not isinstance(anchors, dict):
         return anchors
 
     used_anchors = set()
+
     with open(csv_filename, newline='', encoding='utf-8') as file:
         reader = csv.DictReader(file)
+
         for row in reader:
             for i in range(1, 5):
                 anchor_id = row.get(f"id_{i}")
+
                 if anchor_id:
                     used_anchors.add(anchor_id)
+
     return {k: v for k, v in anchors.items() if k in used_anchors}
 
 
 def format_duration(seconds_total):
-    """Formats a duration into mm:ss or hh:mm:ss."""
     hours = int(seconds_total // 3600)
     minutes = int((seconds_total % 3600) // 60)
     seconds = int(seconds_total % 60)
 
     if hours > 0:
         return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
     return f"{minutes:02d}:{seconds:02d}"
 
 
 def detect_stops(csv_filename, speed_thresh=0.5, min_duration=1.0):
-    """Detects stops based on movement speed threshold and duration."""
     xs, ys, timestamps, float_timestamps = get_positions(csv_filename)
 
     utils.logger.debug("Stops calculation")
+
     dt = np.diff(float_timestamps)
     dt[dt == 0] = 1e-6
+
     vx = np.diff(xs) / dt
     vy = np.diff(ys) / dt
+
     speed = np.sqrt(vx**2 + vy**2)
     speed = np.append(speed, speed[-1])
 
@@ -159,16 +170,21 @@ def detect_stops(csv_filename, speed_thresh=0.5, min_duration=1.0):
 
     stops = []
     n = len(low)
+
     i = 0
+
     while i < n:
         if not low[i]:
             i += 1
             continue
+
         j = i
+
         while j + 1 < n and low[j + 1]:
             j += 1
 
         duration = float_timestamps[j] - float_timestamps[i]
+
         if duration >= min_duration:
             stops.append({
                 "start_frame": i + 1,
@@ -176,20 +192,22 @@ def detect_stops(csv_filename, speed_thresh=0.5, min_duration=1.0):
                 "x": float(np.mean(xs[i:j + 1])),
                 "y": float(np.mean(ys[i:j + 1])),
             })
+
         i = j + 1
 
     return xs, ys, float_timestamps, stops
 
 
 def show_summary_window(csv_filename):
-    """Displays a static summary window with stop statistics."""
     xs, ys, float_timestamps, stops = detect_stops(csv_filename)
 
     fig, ax = plt.subplots(figsize=(6, 4))
+
     ax.axis('off')
     ax.set_title("Résumé des mesures", fontsize=14, pad=20, weight='bold')
 
     durations = []
+
     for s in stops:
         start, end = s["start_frame"], s["end_frame"]
         durations.append(float_timestamps[end - 1] - float_timestamps[start - 1])
@@ -205,9 +223,7 @@ def show_summary_window(csv_filename):
 
     step_dist = np.sqrt(dx**2 + dy**2)
 
-    # Ignore tiny jitter
     step_dist[step_dist < 0.10] = 0
-    # Reject unrealistic jumps
     step_dist[step_dist > 1.5] = 0
 
     dist = np.sum(step_dist)
@@ -220,16 +236,22 @@ def show_summary_window(csv_filename):
         f"- Durée moyenne d'arrêt : {mean_stop:.2f} s"
     )
 
-    ax.text(0.05, 0.95, text, va='top', ha='left', fontsize=11, family='monospace')
+    ax.text(0.05, 0.95, text,
+            va='top',
+            ha='left',
+            fontsize=11,
+            family='monospace')
+
     plt.tight_layout()
     plt.show(block=False)
 
 
 def plot_precision_1d(csv_filename):
-    """Displays a 1D precision plot for range measurements."""
     xs = []
+
     with open(csv_filename, newline='', encoding='utf-8') as file:
         reader = csv.DictReader(file)
+
         for row in reader:
             try:
                 xs.append(float(row.get("d1")))
@@ -237,6 +259,7 @@ def plot_precision_1d(csv_filename):
                 continue
 
     xs = np.array(xs)
+
     if len(xs) == 0:
         raise ValueError("No d1 values found in CSV")
 
@@ -244,50 +267,96 @@ def plot_precision_1d(csv_filename):
     std_x = np.std(xs)
 
     fig, ax = plt.subplots(figsize=(10, 4))
+
     ax.set_title("1D Precision Analysis")
 
     jitter = (np.random.rand(len(xs)) - 0.5) * 0.1
-    ax.scatter(xs, jitter, color="blue", alpha=0.6, s=25, label="Measures")
+
+    ax.scatter(xs, jitter,
+               color="blue",
+               alpha=0.6,
+               s=25,
+               label="Measures")
 
     if std_x > 0:
-        x_plot = np.linspace(mean_x - 4 * std_x, mean_x + 4 * std_x, 500)
+        x_plot = np.linspace(mean_x - 4 * std_x,
+                             mean_x + 4 * std_x,
+                             500)
+
         pdf = norm.pdf(x_plot, mean_x, std_x)
         pdf = pdf / pdf.max() / 5
-        ax.plot(x_plot, pdf, color="red", linewidth=2, label="Gaussian")
-        ax.axvspan(mean_x - std_x, mean_x + std_x,
-                   color="yellow", alpha=0.15, label="±1σ")
-        ax.axvspan(mean_x - 2 * std_x, mean_x + 2 * std_x,
-                   color="orange", alpha=0.10, label="±2σ")
-        ax.plot(x_plot, pdf, color="none", linewidth=2, label=f"Total measures: {len(xs)}")
 
-    ax.axvline(REAL_RANGE_1D, color="green", linestyle=":", linewidth=2, label="Real position")
-    ax.axvline(mean_x, color="gray", linestyle="-", linewidth=2, label=f"Mean = {mean_x:.3f}")
-    ax.axvline(mean_x - CHIP_INCERTITUDE, color="purple", linestyle="--", linewidth=2)
-    ax.axvline(mean_x + CHIP_INCERTITUDE, color="purple", linestyle="--", linewidth=2, label="Incertitude")
+        ax.plot(x_plot, pdf,
+                color="red",
+                linewidth=2,
+                label="Gaussian")
+
+        ax.axvspan(mean_x - std_x,
+                   mean_x + std_x,
+                   color="yellow",
+                   alpha=0.15,
+                   label="±1σ")
+
+        ax.axvspan(mean_x - 2 * std_x,
+                   mean_x + 2 * std_x,
+                   color="orange",
+                   alpha=0.10,
+                   label="±2σ")
+
+    ax.axvline(REAL_RANGE_1D,
+               color="green",
+               linestyle=":",
+               linewidth=2,
+               label="Real position")
+
+    ax.axvline(mean_x,
+               color="gray",
+               linestyle="-",
+               linewidth=2,
+               label=f"Mean = {mean_x:.3f}")
+
+    ax.axvline(mean_x - CHIP_INCERTITUDE,
+               color="purple",
+               linestyle="--",
+               linewidth=2)
+
+    ax.axvline(mean_x + CHIP_INCERTITUDE,
+               color="purple",
+               linestyle="--",
+               linewidth=2,
+               label="Incertitude")
+
     ax.set_yticks([])
     ax.set_xlabel("Measured range")
+
     ax.legend()
+
     ax.grid(True, linestyle=":", alpha=0.5)
+
     plt.show()
 
 
 def resolve_visualization_inputs(args):
-    """Resolves CSV, image and experiment inputs for the viewer."""
     csv_path = os.path.abspath(args.csv)
     image_path = os.path.abspath(args.image) if args.image else None
+
     anchors_path = None
 
     if args.experiment:
         experiment_path = os.path.abspath(args.experiment)
+
         candidate_csv = os.path.join(experiment_path, "calibrated_points.csv")
+
         if os.path.exists(candidate_csv):
             csv_path = candidate_csv
 
         candidate_image = os.path.join(experiment_path, "processed_image.png")
+
         if os.path.exists(candidate_image):
             image_path = candidate_image
 
         candidate_anchors = os.path.join(experiment_path, "anchors_calibrated.json")
+
         if os.path.exists(candidate_anchors):
             anchors_path = candidate_anchors
 
@@ -295,9 +364,9 @@ def resolve_visualization_inputs(args):
 
 
 def update_scatter_from_csv(anchors, csv_filename, image_path, args):
-    """Displays a dynamic trajectory plot of the tag positions."""
     try:
         img = None
+
         if image_path and os.path.exists(image_path):
             img = mpimg.imread(image_path)
 
@@ -310,19 +379,63 @@ def update_scatter_from_csv(anchors, csv_filename, image_path, args):
         all_y = np.concatenate([ys, anchor_ys]) if len(anchor_ys) else ys
 
         padding = utils.img_padding if img is not None else utils.no_image_padding
+
         x_min, x_max = all_x.min() - padding, all_x.max() + padding
         y_min, y_max = all_y.min() - padding, all_y.max() + padding
 
-        if args.heatmap:
-            fig, (ax_points, ax_heat) = plt.subplots(1, 2, figsize=(12, 6))
-            fig.subplots_adjust(bottom=0.25, wspace=0.25)
-        else:
-            fig, ax_points = plt.subplots()
-            fig.subplots_adjust(bottom=0.25)
+        if args.heatmap and args.stops:
+            fig = plt.figure(figsize=(18, 6))
+
+            gs = GridSpec(
+                1,
+                4,
+                width_ratios=[1, 1, 1, 0.05],
+                wspace=0.25,
+                figure=fig
+            )
+
+            ax_points = fig.add_subplot(gs[0, 0])
+            ax_heat = fig.add_subplot(gs[0, 1])
+            ax_stops = fig.add_subplot(gs[0, 2])
+            cbar_ax = fig.add_subplot(gs[0, 3])
+
+        elif args.heatmap:
+            fig = plt.figure(figsize=(12, 6))
+
+            gs = GridSpec(
+                1,
+                3,
+                width_ratios=[1, 1, 0.05],
+                wspace=0.25,
+                figure=fig
+            )
+
+            ax_points = fig.add_subplot(gs[0, 0])
+            ax_heat = fig.add_subplot(gs[0, 1])
+            cbar_ax = fig.add_subplot(gs[0, 2])
+
+            ax_stops = None
+
+        elif args.stops:
+            fig, (ax_points, ax_stops) = plt.subplots(
+                1,
+                2,
+                figsize=(12, 6)
+            )
+
             ax_heat = None
+            cbar_ax = None
+
+        else:
+            fig, ax_points = plt.subplots(figsize=(8, 6))
+
+            ax_heat = None
+            ax_stops = None
+            cbar_ax = None
 
         def draw_background(target_ax):
             target_ax.set_aspect("equal")
+
             if img is not None:
                 target_ax.imshow(
                     img,
@@ -334,28 +447,56 @@ def update_scatter_from_csv(anchors, csv_filename, image_path, args):
         def apply_axis_frame(target_ax):
             target_ax.set_xlabel("X")
             target_ax.set_ylabel("Y")
+
             target_ax.set_xlim(x_min, x_max)
             target_ax.set_ylim(y_min, y_max)
+
             target_ax.invert_yaxis()
 
             bin_size_x = (x_max - x_min) / MAJOR_CELLS
             bin_size_y = (y_max - y_min) / MAJOR_CELLS
+
             minor_x = bin_size_x / MINOR_DIV
             minor_y = bin_size_y / MINOR_DIV
 
-            target_ax.set_xticks(np.arange(x_min, x_max + bin_size_x, bin_size_x))
-            target_ax.set_yticks(np.arange(y_min, y_max + bin_size_y, bin_size_y))
-            target_ax.set_xticks(np.arange(x_min, x_max + minor_x, minor_x), minor=True)
-            target_ax.set_yticks(np.arange(y_min, y_max + minor_y, minor_y), minor=True)
-            target_ax.grid(which='major', linestyle=':', color='gray', linewidth=1.5, alpha=0.5)
-            target_ax.grid(which='minor', linestyle=':', color='gray', linewidth=1, alpha=0.3)
+            target_ax.set_xticks(
+                np.arange(x_min, x_max + bin_size_x, bin_size_x)
+            )
+
+            target_ax.set_yticks(
+                np.arange(y_min, y_max + bin_size_y, bin_size_y)
+            )
+
+            target_ax.set_xticks(
+                np.arange(x_min, x_max + minor_x, minor_x),
+                minor=True
+            )
+
+            target_ax.set_yticks(
+                np.arange(y_min, y_max + minor_y, minor_y),
+                minor=True
+            )
+
+            target_ax.grid(which='major',
+                           linestyle=':',
+                           color='gray',
+                           linewidth=1.5,
+                           alpha=0.5)
+
+            target_ax.grid(which='minor',
+                           linestyle=':',
+                           color='gray',
+                           linewidth=1,
+                           alpha=0.3)
 
         draw_background(ax_points)
 
         if args.precision:
             mean_x, mean_y = np.mean(xs), np.mean(ys)
+
             std_x, std_y = np.std(xs), np.std(ys)
             var_x, var_y = np.var(xs), np.var(ys)
+
             gaussian_circle = Ellipse(
                 (mean_x, mean_y),
                 width=4 * std_x,
@@ -366,7 +507,9 @@ def update_scatter_from_csv(anchors, csv_filename, image_path, args):
                 linewidth=1.5,
                 label=f"Incertitude (2σ), VarX={var_x:.3f}, VarY={var_y:.3f}",
             )
+
             ax_points.add_patch(gaussian_circle)
+
             ax_points.plot(
                 [REAL_POS_PRECISION[0]],
                 [REAL_POS_PRECISION[1]],
@@ -376,19 +519,85 @@ def update_scatter_from_csv(anchors, csv_filename, image_path, args):
                 linestyle='',
                 label="Real position",
             )
-            ax_points.plot([mean_x], [mean_y], 'yo', markersize=6, label="Mean position")
+
+            ax_points.plot(
+                [mean_x],
+                [mean_y],
+                'yo',
+                markersize=6,
+                label="Mean position"
+            )
 
         if len(anchor_xs):
-            ax_points.scatter(anchor_xs, anchor_ys, c="purple", s=80, marker="X", label="Anchors")
+            ax_points.scatter(
+                anchor_xs,
+                anchor_ys,
+                c="purple",
+                s=80,
+                marker="X",
+                label="Anchors"
+            )
+
+        all_stops = []
 
         if args.stops:
-            _, _, _, stops_pos = detect_stops(csv_filename)
-            stop_xs = [stop["x"] for stop in stops_pos]
-            stop_ys = [stop["y"] for stop in stops_pos]
-            ax_points.scatter(stop_xs, stop_ys, c="green", s=60, marker="^", label="Stops")
+            _, _, _, all_stops = detect_stops(csv_filename)
 
-        point, = ax_points.plot([], [], 'ro', markersize=6, label="Interval end")
-        interval_scatter = ax_points.scatter([], [], c='blue', s=30, alpha=0.2, label="Interval positions")
+            if ax_stops is not None:
+                draw_background(ax_stops)
+
+                stop_xs_all = [stop["x"] for stop in all_stops]
+                stop_ys_all = [stop["y"] for stop in all_stops]
+
+                ax_stops.scatter(
+                    stop_xs_all,
+                    stop_ys_all,
+                    c="yellow",
+                    s=80,
+                    marker="^",
+                    label="All Stops"
+                )
+
+                if len(anchor_xs):
+                    ax_stops.scatter(
+                        anchor_xs,
+                        anchor_ys,
+                        c="purple",
+                        s=80,
+                        marker="X",
+                        label="Anchors"
+                    )
+
+                apply_axis_frame(ax_stops)
+
+                ax_stops.set_title("All detected stops")
+                ax_stops.legend()
+
+        point, = ax_points.plot(
+            [],
+            [],
+            'ro',
+            markersize=6,
+            label="Interval end"
+        )
+
+        interval_scatter = ax_points.scatter(
+            [],
+            [],
+            c='blue',
+            s=30,
+            alpha=0.2,
+            label="Interval positions"
+        )
+
+        visible_stops_scatter = ax_points.scatter(
+            [],
+            [],
+            c="yellow",
+            s=60,
+            marker="^",
+            label="Visible Stops"
+        )
 
         apply_axis_frame(ax_points)
         ax_points.legend()
@@ -399,53 +608,91 @@ def update_scatter_from_csv(anchors, csv_filename, image_path, args):
             if len(xs) > 0:
                 bin_size_x = (x_max - x_min) / NUM_BINS
                 bin_size_y = (y_max - y_min) / NUM_BINS
+
                 x_bins = np.arange(x_min, x_max, bin_size_x)
                 y_bins = np.arange(y_min, y_max, bin_size_y)
-                heatmap, xedges, yedges = np.histogram2d(xs, ys, bins=[x_bins, y_bins])
-                heatmap_seconds = heatmap * args.max_time_diff
 
+                heatmap, xedges, yedges = np.histogram2d(
+                    xs,
+                    ys,
+                    bins=[x_bins, y_bins]
+                )
+
+                heatmap_seconds = heatmap * args.max_time_diff
 
                 cmap = LinearSegmentedColormap.from_list(
                     "custom_blue",
                     [
-                        (0.85, 0.92, 1.0),  # pale blue
-                        (0.0, 0.2, 0.9)     # strong blue
+                        (0.85, 0.92, 1.0),
+                        (0.0, 0.2, 0.9)
                     ]
                 )
 
                 cmap.set_bad(color="white")
 
-                norm = LogNorm(vmin=0.1, vmax=heatmap_seconds.max())
+                norm = LogNorm(
+                    vmin=0.1,
+                    vmax=heatmap_seconds.max()
+                )
 
                 im = ax_heat.imshow(
                     heatmap_seconds.T,
-                    extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]],
+                    extent=[
+                        xedges[0],
+                        xedges[-1],
+                        yedges[0],
+                        yedges[-1]
+                    ],
                     origin='lower',
                     cmap=cmap,
                     norm=norm,
                     alpha=0.8,
-                    aspect='auto',
+                    aspect='equal',
                 )
 
                 ticks = [1, 5, 10, 30, 60, 120, 300, 600]
 
-                cbar = fig.colorbar(im, ax=ax_heat)
+                # FIXED COLORBAR
+                cbar = fig.colorbar(im, cax=cbar_ax)
+
                 cbar.set_ticks(ticks)
                 cbar.set_ticklabels([str(t) for t in ticks])
-                cbar.set_label("Seconds", rotation=270, labelpad=15)
+
+                cbar.set_label(
+                    "Seconds",
+                    rotation=270,
+                    labelpad=15
+                )
 
             apply_axis_frame(ax_heat)
             ax_heat.set_title("Heatmap")
 
-        ax_points.set_title(f"Trajectory map : Frames 1-1/{len(xs)}\n{timestamps[0]} -> {timestamps[0]}")
-        total_str = format_duration(float_timestamps[-1] - float_timestamps[0])
+        ax_points.set_title(
+            f"Trajectory map : Frames 1-1/{len(xs)}\n"
+            f"{timestamps[0]} -> {timestamps[0]}"
+        )
+
+        total_str = format_duration(
+            float_timestamps[-1] - float_timestamps[0]
+        )
 
         ax_duration = plt.axes([0.25, 0.06, 0.5, 0.03])
+
         ax_duration.axis("off")
-        duration_text = ax_duration.text(0.5, 0.5, f"00:00 - 00:00 / {total_str}", ha="center", va="center", fontsize=10)
+
+        duration_text = ax_duration.text(
+            0.5,
+            0.5,
+            f"00:00 - 00:00 / {total_str}",
+            ha="center",
+            va="center",
+            fontsize=10
+        )
 
         ax_slider = plt.axes([0.25, 0.1, 0.5, 0.03])
+
         init_end = min(len(xs), max(1, args.trail))
+
         slider = RangeSlider(
             ax_slider,
             'Frame range',
@@ -457,62 +704,113 @@ def update_scatter_from_csv(anchors, csv_filename, image_path, args):
 
         ax_prev = plt.axes([0.1, 0.1, 0.05, 0.03])
         ax_next = plt.axes([0.9, 0.1, 0.05, 0.03])
+
         btn_prev = Button(ax_prev, "◀")
         btn_next = Button(ax_next, "▶")
 
         def update(val):
             start_frame, end_frame = slider.val
+
             start_frame = int(round(start_frame))
             end_frame = int(round(end_frame))
+
             start_frame = max(1, min(start_frame, len(xs)))
             end_frame = max(1, min(end_frame, len(xs)))
+
             if start_frame > end_frame:
                 start_frame, end_frame = end_frame, start_frame
 
             selected_x = xs[start_frame - 1:end_frame]
             selected_y = ys[start_frame - 1:end_frame]
-            interval_scatter.set_offsets(np.c_[selected_x, selected_y])
-            point.set_data([xs[end_frame - 1]], [ys[end_frame - 1]])
 
-            start_duration = float_timestamps[start_frame - 1] - float_timestamps[0]
-            end_duration = float_timestamps[end_frame - 1] - float_timestamps[0]
+            interval_scatter.set_offsets(
+                np.c_[selected_x, selected_y]
+            )
+
+            point.set_data(
+                [xs[end_frame - 1]],
+                [ys[end_frame - 1]]
+            )
+
+            visible_stops = [
+                stop for stop in all_stops
+                if stop["start_frame"] >= start_frame
+                and stop["end_frame"] <= end_frame
+            ]
+
+            if visible_stops:
+                stop_offsets = np.c_[
+                    [s["x"] for s in visible_stops],
+                    [s["y"] for s in visible_stops]
+                ]
+            else:
+                stop_offsets = np.empty((0, 2))
+
+            visible_stops_scatter.set_offsets(stop_offsets)
+
+            start_duration = (
+                float_timestamps[start_frame - 1]
+                - float_timestamps[0]
+            )
+
+            end_duration = (
+                float_timestamps[end_frame - 1]
+                - float_timestamps[0]
+            )
+
             duration_text.set_text(
-                f"{format_duration(start_duration)} - {format_duration(end_duration)} / {total_str}"
+                f"{format_duration(start_duration)} - "
+                f"{format_duration(end_duration)} / {total_str}"
             )
 
             ax_points.set_title(
-                f"Trajectory map : Frames {start_frame}-{end_frame}/{len(xs)}\n"
-                f"{timestamps[start_frame - 1]} -> {timestamps[end_frame - 1]}"
+                f"Trajectory map : Frames "
+                f"{start_frame}-{end_frame}/{len(xs)}\n"
+                f"{timestamps[start_frame - 1]} -> "
+                f"{timestamps[end_frame - 1]}"
             )
+
             fig.canvas.draw_idle()
 
         slider.on_changed(update)
+
         update(0)
 
         def next_frame(event):
             fig.canvas.release_mouse(slider.ax)
+
             start_frame, end_frame = slider.val
+
             start_frame = int(round(start_frame))
             end_frame = int(round(end_frame))
+
             width = max(0, end_frame - start_frame)
+
             if end_frame < len(xs):
-                new_end = end_frame + 1
+                new_end = end_frame + 25
                 new_start = max(1, new_end - width)
+
                 slider.set_val((new_start, new_end))
 
         def prev_frame(event):
             fig.canvas.release_mouse(slider.ax)
+
             start_frame, end_frame = slider.val
+
             start_frame = int(round(start_frame))
             end_frame = int(round(end_frame))
+
             width = max(0, end_frame - start_frame)
+
             if start_frame > 1:
-                new_start = start_frame - 1
+                new_start = start_frame - 25
                 new_end = min(len(xs), new_start + width)
+
                 slider.set_val((new_start, new_end))
 
         btn_next.on_clicked(next_frame)
         btn_prev.on_clicked(prev_frame)
+
         plt.show()
 
     except KeyboardInterrupt:
@@ -520,23 +818,31 @@ def update_scatter_from_csv(anchors, csv_filename, image_path, args):
 
 
 def main():
-    """Runs the standalone visualization script."""
     parser = build_arg_parser()
+
     args = parser.parse_args()
 
     utils.setup_logging(logging.WARNING)
+
     anchors = utils.load_anchors()
 
     csv_path, image_path, anchors_path = resolve_visualization_inputs(args)
+
     if anchors_path:
         anchors = utils.load_anchors(anchors_path)
+
     anchors = smart_anchors(anchors, csv_path)
 
     if args.stops:
         show_summary_window(csv_path)
 
     if len(anchors) > 1:
-        update_scatter_from_csv(anchors, csv_path, image_path, args)
+        update_scatter_from_csv(
+            anchors,
+            csv_path,
+            image_path,
+            args
+        )
     else:
         plot_precision_1d(csv_path)
 

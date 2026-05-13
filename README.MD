@@ -164,6 +164,9 @@ python visualiser.py --csv ../logs/positions.csv --image ../images/Classe_Boisjo
 
 # Visualization directly from an experiment folder (calibrated points)
 python visualiser.py --experiment ../experiments/experiment_name_transformed/ --heatmap --stops
+
+# IMPORTANT !!!! If pressing tab do not autocomplete the experiment name, enter
+cd scripts
 ```
 
 ---
@@ -309,12 +312,6 @@ if(_networkDevicesNumber + 1 <= MAX_DEVICES && addDevice)
 1545
 
 ## TODO
-
-Stops dans une fenetre appart + dynamique dans la fenetre avec les points
-point rouge au lieu de vert
-stops vert au lieu de rouge
-fleches par bond de 3-5
-Transformation anchors image ca marche pas cest pas tant alligner 
 
 ### Network socket timeout
 
