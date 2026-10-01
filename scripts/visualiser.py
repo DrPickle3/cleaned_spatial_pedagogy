@@ -552,7 +552,7 @@ def update_scatter_from_csv(anchors, csv_filename, image_path, args):
                 ax_stops.scatter(
                     stop_xs_all,
                     stop_ys_all,
-                    c="yellow",
+                    c="green",
                     s=80,
                     marker="^",
                     label="All Stops"
@@ -593,7 +593,7 @@ def update_scatter_from_csv(anchors, csv_filename, image_path, args):
         visible_stops_scatter = ax_points.scatter(
             [],
             [],
-            c="yellow",
+            c="green",
             s=60,
             marker="^",
             label="Visible Stops"
